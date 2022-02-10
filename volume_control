@@ -1,8 +1,11 @@
 #!/usr/bin/python
 import argparse
 from subprocess import Popen, PIPE
+from os import remove
+from os.path import isfile
 
-pop_sfx_path = "/usr/share/sounds/freedesktop/stereo/audio-volume-change.oga"
+pop_sfx_path  = "/usr/share/sounds/freedesktop/stereo/audio-volume-change.oga"
+sfx_flag_path = "/tmp/volume_sfx_flag" # Because too many streams = breaking audio system lol
 
 run = lambda args: (val := Popen(args, stdout=PIPE)).wait() or val.stdout.read().decode().strip()
 
@@ -44,14 +47,15 @@ for device in devices:
             (get_vol(device) + int(volume)) if volume[0] in "+-" else int(volume)
         )))
         run(["pactl", "set-sink-volume", device, str(new_level) + '%'])
+            
+    if not args.no_osd and len(devices) == 1:
+        Popen(["qdbus", "org.kde.plasmashell", "/org/kde/osdService",
+            "org.kde.osdService.volumeChanged",
+            str( int(100 * new_level / cap) if args.osd_adjust_max else new_level )
+        ])
     
-    if (not args.no_sfx) and device == devices[0]:
-        Popen(["paplay", pop_sfx_path])
-    
-    if args.no_osd or len(devices) != 1:
-        exit()
-    
-    run(["qdbus", "org.kde.plasmashell", "/org/kde/osdService",
-        "org.kde.osdService.volumeChanged",
-        str( int(100 * new_level / cap) if args.osd_adjust_max else new_level )
-    ])
+    if not args.no_sfx and device == devices[0]:
+        if not isfile(sfx_flag_path):
+            run(["touch", sfx_flag_path])
+            run(["paplay", pop_sfx_path])
+            remove(sfx_flag_path)
