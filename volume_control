@@ -2,6 +2,8 @@
 import argparse
 from subprocess import Popen, PIPE
 
+pop_sfx_path = "/usr/share/sounds/freedesktop/stereo/audio-volume-change.oga"
+
 run = lambda args: (val := Popen(args, stdout=PIPE)).wait() or val.stdout.read().decode().strip()
 
 parser = argparse.ArgumentParser(description="Simple multi-device audio control for KDE", formatter_class=argparse.RawTextHelpFormatter)
@@ -11,6 +13,8 @@ parser.add_argument('-d', "--device", default=None,
     help="sink device name, multiple can be specified with commas (will disable OSD)\nnote: negative number inputs are a bit janky with argparse so write them like this: volume_control \" -5%%\"")
 parser.add_argument('-c', "--cap", default="150",
     help="maximum volume precentage (default: 150)")
+parser.add_argument('-s', "--no-sfx", default=False, const=True, action="store_const",
+    help="disable pop sound effect")
 parser.add_argument('-n', "--no-osd", default=False, const=True, action="store_const",
     help="disable dbus volume OSD")
 parser.add_argument('-a', "--osd-adjust-max", default=False, const=True, action="store_const",
@@ -40,6 +44,9 @@ for device in devices:
             (get_vol(device) + int(volume)) if volume[0] in "+-" else int(volume)
         )))
         run(["pactl", "set-sink-volume", device, str(new_level) + '%'])
+    
+    if (not args.no_sfx) and device == devices[0]:
+        Popen(["paplay", pop_sfx_path])
     
     if args.no_osd or len(devices) != 1:
         exit()
