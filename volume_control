@@ -54,8 +54,7 @@ for device in devices:
             str( int(100 * new_level / cap) if args.osd_adjust_max else new_level )
         ])
     
-    if not args.no_sfx and device == devices[0]:
-        if not isfile(sfx_flag_path):
-            run(["touch", sfx_flag_path])
-            run(["paplay", pop_sfx_path])
-            remove(sfx_flag_path)
+    if not args.no_sfx and device == devices[0] and not isfile(sfx_flag_path):
+        run(["touch", sfx_flag_path])
+        run(["paplay", pop_sfx_path])
+        remove(sfx_flag_path)
