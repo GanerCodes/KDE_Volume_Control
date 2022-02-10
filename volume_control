@@ -1,0 +1,50 @@
+#!/usr/bin/python
+import argparse
+from subprocess import Popen, PIPE
+
+run = lambda args: (val := Popen(args, stdout=PIPE)).wait() or val.stdout.read().decode().strip()
+
+parser = argparse.ArgumentParser(description="Simple multi-device audio control for KDE", formatter_class=argparse.RawTextHelpFormatter)
+parser.add_argument("volume", metavar="volume",
+    help="volume change (ex. +5%%, -3%%, 25%%)")
+parser.add_argument('-d', "--device", default=None,
+    help="sink device name, multiple can be specified with commas (will disable OSD)\nnote: negative number inputs are a bit janky with argparse so write them like this: volume_control \" -5%%\"")
+parser.add_argument('-c', "--cap", default="150",
+    help="maximum volume precentage (default: 150)")
+parser.add_argument('-n', "--no-osd", default=False, const=True, action="store_const",
+    help="disable dbus volume OSD")
+parser.add_argument('-a', "--osd-adjust-max", default=False, const=True, action="store_const",
+    help="makes the OSD volume proportional to the cap rather than 100%")
+
+args = parser.parse_args()
+
+devices = (args.device if args.device else run(["pactl", "get-default-sink"])).split(',')
+
+get_vol = lambda device: int(run(["pamixer", "--sink", device, "--get-volume"]))
+toggle_mute = lambda device: run(["pamixer", "--sink", device, "--toggle-mute"])
+for device in devices:
+    volume = args.volume.lower().strip()
+    mute = volume.startswith("mute")
+    volume = '0' if mute else volume.rstrip('%')
+    cap = int(args.cap.rstrip('%'))
+    
+    was_muted = run(["pamixer", "--sink", device, "--get-mute"]) == "true"
+    if mute:
+        toggle_mute(device)
+        new_level = get_vol(device) if was_muted else 0
+    else:
+        if was_muted:
+            toggle_mute(device)
+        
+        new_level = int(max(0, min(cap,
+            (get_vol(device) + int(volume)) if volume[0] in "+-" else int(volume)
+        )))
+        run(["pactl", "set-sink-volume", device, str(new_level) + '%'])
+    
+    if args.no_osd or len(devices) != 1:
+        exit()
+    
+    run(["qdbus", "org.kde.plasmashell", "/org/kde/osdService",
+        "org.kde.osdService.volumeChanged",
+        str( int(100 * new_level / cap) if args.osd_adjust_max else new_level )
+    ])
