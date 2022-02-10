@@ -1,1 +1,2 @@
-# Simple python based volume_control
+# Simple python based volume control for Linux
+# Works on KDE and with modifications likely anything that uses Pipewire/Pulse
